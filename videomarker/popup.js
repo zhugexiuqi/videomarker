@@ -4,8 +4,8 @@ let folders = [];
 let videos = [];
 let pendingVideoInfo = null;
 let isConfirmMode = false;
-let expandedVideoIds = new Set();      // 存储展开的视频ID
-let editingPointId = null;             // 当前正在编辑的记忆点标识 (videoId_pointId)
+let expandedVideoIds = new Set();
+let editingPointId = null;
 
 // ---------- 辅助函数 ----------
 function formatTime(seconds) {
@@ -78,8 +78,8 @@ function generateVideoPreviewContent(video) {
   return content;
 }
 
-// 简单的 Markdown 转 HTML（用于内联预览）
-function simpleMarkdownToHtml(markdown) {
+// 简单的 Markdown 转 HTML（用于内联预览和预览模态框）
+function markdownToHtml(markdown) {
   if (!markdown) return '';
   let html = markdown
     .replace(/&/g, '&amp;')
@@ -99,29 +99,66 @@ function simpleMarkdownToHtml(markdown) {
   return html;
 }
 
-// ---------- 预览功能（合并视频所有点的笔记）----------
-async function previewVideo(videoId) {
+// 预览模态框
+function showPreviewModal(content) {
+  // 移除已存在的模态框
+  const existing = document.getElementById('preview-modal');
+  if (existing) existing.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'preview-modal';
+  modal.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.5);
+    z-index: 1000000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  `;
+  const dialog = document.createElement('div');
+  dialog.style.cssText = `
+    background: white;
+    width: 80%;
+    max-width: 800px;
+    max-height: 80%;
+    border-radius: 8px;
+    overflow: auto;
+    padding: 20px;
+    font-family: system-ui, sans-serif;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+  `;
+  dialog.innerHTML = `
+    <div style="display: flex; justify-content: space-between; margin-bottom: 16px;">
+      <h3 style="margin:0;">📝 笔记预览</h3>
+      <button id="close-preview-btn" style="background:none; border:none; font-size:20px; cursor:pointer;">&times;</button>
+    </div>
+    <div id="preview-content" style="line-height:1.5;"></div>
+  `;
+  modal.appendChild(dialog);
+  document.body.appendChild(modal);
+
+  const previewDiv = dialog.querySelector('#preview-content');
+  previewDiv.innerHTML = markdownToHtml(content);
+
+  const closeBtn = dialog.querySelector('#close-preview-btn');
+  closeBtn.addEventListener('click', () => modal.remove());
+  modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+}
+
+// ---------- 预览功能（内部模态框）----------
+function previewVideo(videoId) {
+  console.log('[预览] 请求预览视频ID:', videoId);
   const video = videos.find(v => v.id === videoId);
-  if (!video) return;
+  if (!video) {
+    alert(`未找到视频 (ID: ${videoId})`);
+    return;
+  }
   const content = generateVideoPreviewContent(video);
-  const tab = await chrome.tabs.create({ url: 'https://markdownlivepreview.com/' });
-  const listener = (tabId, changeInfo) => {
-    if (tabId === tab.id && changeInfo.status === 'complete') {
-      chrome.tabs.onUpdated.removeListener(listener);
-      chrome.scripting.executeScript({
-        target: { tabId: tab.id },
-        func: (text) => {
-          const textarea = document.querySelector('#editor');
-          if (textarea) {
-            textarea.value = text;
-            textarea.dispatchEvent(new Event('input', { bubbles: true }));
-          }
-        },
-        args: [content]
-      }).catch(err => console.error('注入失败', err));
-    }
-  };
-  chrome.tabs.onUpdated.addListener(listener);
+  showPreviewModal(content);
 }
 
 // ---------- 数据迁移 ----------
@@ -131,7 +168,7 @@ async function migrateOldData() {
     console.log('正在迁移旧数据...');
     const newVideos = {};
     for (const mem of oldData.memories) {
-      const url = mem.url;
+      const url = normalizeUrl(mem.url);
       if (!newVideos[url]) {
         newVideos[url] = {
           id: url,
@@ -160,6 +197,15 @@ async function migrateOldData() {
   const { folders: existingFolders } = await chrome.storage.local.get('folders');
   if (!existingFolders || existingFolders.length === 0) {
     await chrome.storage.local.set({ folders: [{ id: 'default', name: '默认' }] });
+  }
+}
+
+function normalizeUrl(url) {
+  try {
+    const u = new URL(url);
+    return u.origin + u.pathname;
+  } catch (e) {
+    return url;
   }
 }
 
@@ -212,7 +258,6 @@ function renderFolderManager() {
     `;
   });
   container.innerHTML = html;
-  // 点击文件夹名筛选
   document.querySelectorAll('.folder-name').forEach(el => {
     el.addEventListener('click', () => {
       currentFilter = el.dataset.id;
@@ -220,7 +265,6 @@ function renderFolderManager() {
       renderVideos();
     });
   });
-  // 重命名
   document.querySelectorAll('.rename-folder').forEach(btn => {
     btn.addEventListener('click', async (e) => {
       e.stopPropagation();
@@ -237,7 +281,6 @@ function renderFolderManager() {
       }
     });
   });
-  // 删除文件夹
   document.querySelectorAll('.delete-folder').forEach(btn => {
     btn.addEventListener('click', async (e) => {
       e.stopPropagation();
@@ -345,23 +388,12 @@ function renderVideos() {
     });
   });
 
-  // 视频预览按钮
+  // 预览视频
   document.querySelectorAll('.preview-video-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       const videoId = btn.dataset.videoId;
       previewVideo(videoId);
-    });
-  });
-
-  // 跳转点（优化：优先使用当前标签页）
-  document.querySelectorAll('.jump-point').forEach(btn => {
-    btn.addEventListener('click', async (e) => {
-      e.stopPropagation();
-      const videoId = btn.dataset.videoId;
-      const targetTime = parseFloat(btn.dataset.time);
-      const video = videos.find(v => v.id === videoId);
-      if (video) await jumpToVideo(video, targetTime);
     });
   });
 
@@ -375,14 +407,25 @@ function renderVideos() {
     });
   });
 
-  // 内联编辑：点击“编辑”按钮
+  // 跳转点
+  document.querySelectorAll('.jump-point').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const videoId = btn.dataset.videoId;
+      const targetTime = parseFloat(btn.dataset.time);
+      const video = videos.find(v => v.id === videoId);
+      if (video) jumpToVideo(video, targetTime);
+    });
+  });
+
+  // 内联编辑
   document.querySelectorAll('.edit-note-inline').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       const pointId = btn.dataset.pointId;
       const videoId = btn.dataset.videoId;
       editingPointId = `${videoId}_${pointId}`;
-      renderVideos(); // 重新渲染，该点进入编辑模式
+      renderVideos();
     });
   });
 
@@ -470,60 +513,30 @@ function renderVideos() {
   });
 }
 
-// ---------- 跳转到视频时间点（优化：优先使用当前标签页）----------
+// ---------- 跳转到视频时间点 ----------
 async function jumpToVideo(video, targetTime) {
-  // 获取当前活动标签页
-  const [currentTab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  // 检查当前标签页的 URL 是否与视频 URL 匹配（忽略查询参数和 hash）
-  const currentUrl = currentTab.url;
-  const videoUrl = new URL(video.url);
-  const current = new URL(currentUrl);
-  const isSameOriginAndPath = current.hostname === videoUrl.hostname && current.pathname === videoUrl.pathname;
-  if (isSameOriginAndPath) {
-    // 直接在当前标签页跳转
-    await chrome.scripting.executeScript({
-      target: { tabId: currentTab.id },
-      func: (time) => {
-        const videoElem = document.querySelector('video');
-        if (videoElem) videoElem.currentTime = time;
-      },
-      args: [targetTime]
-    });
-    // 确保标签页激活（如果已经激活则无影响）
-    if (!currentTab.active) await chrome.tabs.update(currentTab.id, { active: true });
-    return;
-  }
-
-  // 否则查找已有标签页（URL 精确匹配）
   const tabs = await chrome.tabs.query({ url: video.url });
   if (tabs.length) {
     const tab = tabs[0];
     await chrome.tabs.update(tab.id, { active: true });
     await chrome.scripting.executeScript({
       target: { tabId: tab.id },
-      func: (time) => {
-        const videoElem = document.querySelector('video');
-        if (videoElem) videoElem.currentTime = time;
-      },
+      func: (time) => { const v = document.querySelector('video'); if (v) v.currentTime = time; },
       args: [targetTime]
     });
   } else {
-    // 如果都没有，则打开新标签页
     const newTab = await chrome.tabs.create({ url: video.url });
     setTimeout(async () => {
       await chrome.scripting.executeScript({
         target: { tabId: newTab.id },
-        func: (time) => {
-          const videoElem = document.querySelector('video');
-          if (videoElem) videoElem.currentTime = time;
-        },
+        func: (time) => { const v = document.querySelector('video'); if (v) v.currentTime = time; },
         args: [targetTime]
       });
     }, 3000);
   }
 }
 
-// ---------- 保存当前点（两次点击同一按钮）----------
+// ---------- 保存当前点 ----------
 async function prepareSave() {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -552,7 +565,11 @@ async function prepareSave() {
     });
     const result = results[0]?.result;
     if (!result || !result.success) throw new Error(result?.error || '无法获取视频信息');
-    pendingVideoInfo = result;
+    pendingVideoInfo = {
+      url: normalizeUrl(result.url),
+      title: result.title,
+      time: result.time
+    };
     document.getElementById('quickSavePanel').style.display = 'block';
     document.getElementById('quickNote').value = '';
     document.getElementById('quickNote').focus();
@@ -612,7 +629,7 @@ async function addFolder() {
   renderVideos();
 }
 
-// ---------- 导出笔记（批量）----------
+// ---------- 导出笔记 ----------
 async function exportNotes() {
   let exportVideos = [...videos];
   if (currentFilter === 'uncategorized') exportVideos = exportVideos.filter(v => !v.folderId);
