@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      width: 520px;
+      padding: 12px;
+      font-family: system-ui, -apple-system, sans-serif;
+      margin: 0;
+    }
+    .header {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    h3 { margin: 0; font-size: 16px; flex: 1; }
+    button {
+      background: #1a73e8;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      padding: 6px 12px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+    button:hover { background: #0d5bbf; }
+    .export-btn { background: #34a853; }
+    .export-btn:hover { background: #2b8e46; }
+    #quickSavePanel {
+      background: #f8f9fa;
+      border: 1px solid #e0e0e0;
+      border-radius: 6px;
+      padding: 8px;
+      margin-bottom: 12px;
+      display: none;
+    }
+    #quickNote {
+      width: 100%;
+      padding: 6px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+    .folder-selector {
+      width: 100%;
+      padding: 6px;
+      margin-bottom: 12px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+    .memories-list { max-height: 400px; overflow-y: auto; }
+    .video-group {
+      margin-bottom: 16px;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      background: #fafafa;
+    }
+    .video-header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 8px 12px;
+      background: #f0f0f0;
+      border-radius: 8px 8px 0 0;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    .video-title {
+      flex: 1;
+      min-width: 150px;
+      font-size: 13px;
+      word-break: break-word;
+    }
+    .expand-icon {
+      font-size: 14px;
+      color: #5f6368;
+      margin-right: 8px;
+    }
+    .video-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-left: auto;
+    }
+    .video-actions button {
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 12px;
+      padding: 4px 8px;
+      border-radius: 4px;
+      color: #5f6368;
+      transition: background 0.2s;
+    }
+    .video-actions button:hover { background: #e0e0e0; }
+    .points-list { padding: 8px 12px; }
+    .point-item {
+      background: white;
+      margin-bottom: 8px;
+      padding: 8px;
+      border-radius: 4px;
+      border: 1px solid #eee;
+    }
+    .point-time {
+      color: #1a73e8;
+      font-weight: 500;
+      margin-bottom: 4px;
+    }
+    .point-note {
+      color: #5f6368;
+      font-size: 11px;
+      margin-bottom: 4px;
+    }
+    .point-content-row {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      margin-top: 6px;
+    }
+    .point-notes { flex: 1; }
+    .point-actions {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      flex-shrink: 0;
+    }
+    .point-note-editor {
+      width: 100%;
+      font-family: monospace;
+      font-size: 12px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 6px;
+      resize: vertical;
+    }
+    .point-note-editor[readonly] {
+      background: #f9f9f9;
+      cursor: default;
+    }
+    .point-actions button {
+      background: #e9ecef;
+      border: 1px solid #ced4da;
+      padding: 4px 8px;
+      font-size: 11px;
+      border-radius: 4px;
+      cursor: pointer;
+      color: #495057;
+    }
+    .point-actions button:hover { background: #dee2e6; }
+    .save-note-btn {
+      background: #28a745 !important;
+      color: white !important;
+      border: none !important;
+    }
+    .cancel-edit-btn {
+      background: #dc3545 !important;
+      color: white !important;
+    }
+    .empty {
+      color: #5f6368;
+      text-align: center;
+      padding: 20px;
+      font-size: 12px;
+    }
+    .folder-manager {
+      margin-top: 12px;
+      border-top: 1px solid #eee;
+      padding-top: 12px;
+      font-size: 12px;
+    }
+    .folder-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 4px 0;
+    }
+    .folder-name {
+      cursor: pointer;
+      flex: 1;
+    }
+    .folder-name:hover { text-decoration: underline; }
+    .folder-actions button {
+      background: none;
+      border: none;
+      cursor: pointer;
+      margin-left: 6px;
+      font-size: 11px;
+      color: #5f6368;
+    }
+    .add-folder {
+      display: flex;
+      gap: 6px;
+      margin-top: 8px;
+    }
+    .add-folder input {
+      flex: 1;
+      padding: 4px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h3>📌 视频记忆点</h3>
+    <button id="saveBtn">+ 保存当前点</button>
+    <button id="exportBtn" class="export-btn">📄 导出笔记</button>
+  </div>
+  <div id="quickSavePanel">
+    <input type="text" id="quickNote" placeholder="输入备注（可选）" />
+    <div class="hint">⏱️ 再次点击「确认保存」完成记录</div>
+  </div>
+  <select id="folderFilter" class="folder-selector">
+    <option value="all">📂 所有视频</option>
+    <option value="uncategorized">📁 未分类</option>
+  </select>
+  <div id="memoriesList" class="memories-list">
+    <div class="empty">暂无记忆点</div>
+  </div>
+  <div class="folder-manager">
+    <div id="foldersList"></div>
+    <div class="add-folder">
+      <input type="text" id="newFolderName" placeholder="新文件夹名称" />
+      <button id="addFolderBtn">+ 添加</button>
+    </div>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>

@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "视频记忆点",
+  "version": "1.0",
+  "description": "在视频中保存记忆点，支持弹窗与全屏悬浮",
+  "permissions": ["activeTab", "storage", "scripting"],
+  "host_permissions": ["https://markdownlivepreview.com/*"],
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "css": ["content.css"],
+      "run_at": "document_idle"
+    }
+  ]
+}
