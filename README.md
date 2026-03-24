@@ -1,2 +1,2 @@
 # videomarker
-this is a chrome extension aims to improve our experience of learning through video viewing. 
+我们看视频教程时，经常会遇到某个关键点需要记笔记，但是停下来会打断思路。看完再回去找可能又忘了在哪个位置了。这个插件可以标注视频中的“记忆点”，为这些记忆点添加备注和笔记。不同类型的视频可以被安排在不同文件夹中。每个视频的所有记忆点的笔记，可以合并导出一个markdown文档。
